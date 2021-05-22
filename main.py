@@ -9,7 +9,7 @@ from OpenGL.GL import *
 from OpenGL.GL.shaders import compileProgram, compileShader
 from pyrr.vector import normalize
 
-from engine import Camera, Mesh_Renderer, Player, TextureSheet, Vector3, render_objects, create_buffers
+from engine import Camera, Cube_Instancer, Player, TextureSheet, Vector3
 from Extensions import loaders
 from Extensions import geometry
 
@@ -29,14 +29,27 @@ texture_sheet = TextureSheet(os.path.abspath('Assets/Textures/minecraft_texture_
 
 #region Geometry Creation
 cube_model = geometry.Cube() 
-for x in range(5):
-    for y in range(5):
-        for z in range(5):
-            cube = Mesh_Renderer(cube_model.cube_map, cube_model.indices, texture_sheet.images[x *5 + y], (0, 0, 0), (x + x / 2, y + y / 2, z + z / 2))
+
+instancer = Cube_Instancer(cube_model.cube_map.flatten().astype(np.float32), cube_model.indices.astype(np.uint32), texture_sheet)
+instancer.add_object_type(2)
+# instancer.add_object_type(1)
+# instancer.add_object_type(2)
+
+instancer.create_buffers()
+
+# instancer.instantiate((0, 0, 0))
+for x in range(0, 50, 1):
+    for y in range(0, 50, 1):
+        for z in range(0, 50, 1):
+            instancer.instantiate((x, y, z))
+
+print('done')
+
+instancer.bake_arrays()
 #endregion
 
 # Player init
-camera = Camera(asp_ratio=WIDTH/HEIGHT)
+camera = Camera(asp_ratio=WIDTH/HEIGHT, position=(0, 4, 3))
 player = Player(camera)
 
 #region OpenGL settings
@@ -49,10 +62,13 @@ glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 model_loc = glGetUniformLocation(shader, "model")
 proj_loc = glGetUniformLocation(shader, "projection")
 view_loc = glGetUniformLocation(shader, "view")
+move_loc = glGetUniformLocation(shader, "move")
 # endregion
 
+cube_pos = pyrr.matrix44.create_from_translation(pyrr.Vector3([0.0, 0.0, -100.0]))
+
 glUniformMatrix4fv(proj_loc, 1, GL_FALSE, camera.projection)
-glUniformMatrix4fv(view_loc, 1, GL_FALSE, camera.view)
+glUniformMatrix4fv(model_loc, 1, GL_FALSE, cube_pos)
 #endregion
 
 # bind actions
@@ -128,10 +144,15 @@ while True:
 
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
 
-    render_objects(model_loc)
+    ct = pygame.time.get_ticks()/1000
+    move = pyrr.matrix44.create_from_translation(pyrr.Vector3([0, 0, 0]))
+    glUniformMatrix4fv(move_loc, 1, GL_FALSE, move)
+
+    # render_objects(model_loc)
 
     glUniformMatrix4fv(view_loc, 1, GL_FALSE, camera.view)
 
+    glDrawElementsInstanced(GL_TRIANGLES, len(instancer.cube_indices), GL_UNSIGNED_INT, None, instancer.instance_array_len)
 
     # Pygame rendering
     pygame.display.flip()

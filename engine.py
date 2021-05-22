@@ -114,100 +114,159 @@ class Transform:
 
 
 
-class Mesh_Renderer:
-    """
-    Static game object \n
-    functions:
-        __init__: intialization
-        create_buffers: this is called in __init__, if it isn't specified otherwise
-        render: renders object
-    """
-    def __init__(self, vertices: np.array, indices: np.array, texture_img: image=None, rotation=(0, 0, 0), position=(0, 0, 0), create_buffers=True):
-        """
-        Creates object that contains data obout game object \n
-        parameters:
-            vertices: vertices of every face
-            indices: indicies of triangles
-            texture_img: texture image  
-            rotation: obj rotation         
-            position: obj position           
-            create_buffers: bool, if the buffers should be created
-            \n
+# class Mesh_Instancer:
 
-        returns:
-            nothing, use object functions for manipulation
-        """
+
+
+class Cube_Instancer:
+    def __init__(self, cube_vertices, cube_indices, texture_sheet):
+        # Type Data Arrays
+        self.object_types = []
+        self.instance_array = np.zeros(shape=(0, 3), dtype=pyrr.Vector3)
+        self.instance_array_len = 0
+
+        # Cube data
+        self.cube_vertices = cube_vertices
+        self.cube_indices = cube_indices
+        self.texture_sheet = texture_sheet
+
+        # Objects
+        self.IVBO = None
         self.VAO = None
-        self.vertices = vertices.flatten().astype(dtype=np.float32)
-        self.indices = indices.flatten().astype(dtype=np.uint32)
-        self.rotation = list(rotation)
-        self.position = pyrr.Vector3(list(position))
-        self.texture_buff = None
-        self.texture_path = texture_img
+        self.textures = None
 
-        if create_buffers:
-            self.create_buffers()
 
-        objects.append(self)
+    def add_object_type(self, texture_index):
+        """
+        texture: pygame Surface
+        """
+        self.object_types.append(texture_index)
 
 
     def create_buffers(self):
-        """
-        Creates buffers for object
-        """
+        """Create buffers for all objects"""
+
+#         #vertices
+#         glEnableVertexAttribArray(0)
+#         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertices.itemsize * 5, ctypes.c_void_p(0))
+#         # textures
+#         glEnableVertexAttribArray(1)
+#         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, vertices.itemsize * 5, ctypes.c_void_p(12))
+
+        buffer_count = len(self.object_types)
+
         VAO = glGenVertexArrays(1)
         VBO = glGenBuffers(1)
         EBO = glGenBuffers(1)
+        textures = glGenTextures(1)
 
         # Cube VAO
         glBindVertexArray(VAO)
 
         # Cube Vertex Buffer Object
         glBindBuffer(GL_ARRAY_BUFFER, VBO)
-        glBufferData(GL_ARRAY_BUFFER, self.vertices.nbytes, self.vertices, GL_STATIC_DRAW)
+        glBufferData(GL_ARRAY_BUFFER, self.cube_vertices.nbytes, self.cube_vertices, GL_STATIC_DRAW)
 
         # Cube Element Buffer Object
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO)
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, self.indices.nbytes, self.indices, GL_STATIC_DRAW)
-
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, self.cube_indices.nbytes, self.cube_indices, GL_STATIC_DRAW)
+        
         # Shader attribs
+        # cube vertices
         glEnableVertexAttribArray(0)
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, self.vertices.itemsize * 5, ctypes.c_void_p(0))
-
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, self.cube_vertices.itemsize * 5, ctypes.c_void_p(0))
+        # cube textures
         glEnableVertexAttribArray(1)
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, self.vertices.itemsize * 5, ctypes.c_void_p(12))
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, self.cube_vertices.itemsize * 5, ctypes.c_void_p(12))
 
-        if self.texture_path:
-            texture_buff = glGenTextures(1)
-
-            loaders.TextureLoader.load(self.texture_path, texture_buff)
-
-            self.texture_buff = texture_buff
-
+        # Texure loading
+        for obj_index, obj in enumerate(self.object_types):
+            if buffer_count > 1:
+                loaders.TextureLoader.load(self.texture_sheet.images[obj], textures[obj_index])
+            else:
+                loaders.TextureLoader.load(self.texture_sheet.images[obj], textures)
+        
+        self.textures = textures
         self.VAO = VAO
 
+
+    def instantiate(self, position: tuple[3] or list[3]=(0, 0, 0), rotation: tuple[3] or list[3]=(0, 0, 0)):
+        position = pyrr.Vector3(position)
+        # rotation = pyrr.Vector3(rotation)
+        self.instance_array = np.append(self.instance_array, position)
+
+
+    def bake_arrays(self):
+        self.instance_array_len = len(self.instance_array)
+        self.instance_array = self.instance_array.astype(np.float32).flatten()
+
+        print(self.instance_array_len, self.instance_array)
+
+        # Instance Veretex Buffer Object
+        IVBO = glGenBuffers(1)
+        glBindBuffer(GL_ARRAY_BUFFER, IVBO)
+        glBufferData(GL_ARRAY_BUFFER, self.instance_array.nbytes, self.instance_array, GL_STATIC_DRAW)
+
+        glEnableVertexAttribArray(2)
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p(0))
+        glVertexAttribDivisor(2, 1) # 1: every instance will have it's own position
+
+        self.IVBO = IVBO
+
+        
+      
+# class Mesh_Renderer:
+#     """
+#     Static game object \n
+#     functions:
+#         __init__: intialization
+#         create_buffers: this is called in __init__, if it isn't specified otherwise
+#         render: renders object
+#     """
+#     def __init__(self, vertices: np.array, indices: np.array, texture_img: image=None):
+#         """
+#         Creates object that contains data obout game object \n
+#         parameters:
+#             vertices: vertices of every face
+#             indices: indicies of triangles
+#             texture_img: texture image  
+#             rotation: obj rotation         
+#             position: obj position           
+#             create_buffers: bool, if the buffers should be created
+#             \n
+
+#         returns:
+#             nothing, use object functions for manipulation
+#         """
+#         self.vertices = vertices.flatten().astype(dtype=np.float32)
+#         self.indices = indices.flatten().astype(dtype=np.uint32)
+#         self.texture_buff = None
+#         self.texture_img = None
+
+#         objects.append(self)
+
     
-    def render(self, model_loc):
-        """
-        Render object \n
-            model_loc: pointer to shader variable
-        """
-        position = pyrr.matrix44.create_from_translation(self.position)
-        rotation_x = pyrr.Matrix44.from_x_rotation(self.rotation[0], dtype=float)
-        rotation_y = pyrr.Matrix44.from_y_rotation(self.rotation[1], dtype=float)
-        rotation_z = pyrr.Matrix44.from_z_rotation(self.rotation[2], dtype=float)
+#     def render(self, model_loc):
+#         """
+#         Render object \n
+#             model_loc: pointer to shader variable
+#         """
+#         position = pyrr.matrix44.create_from_translation(self.position)
+#         rotation_x = pyrr.Matrix44.from_x_rotation(self.rotation[0], dtype=float)
+#         rotation_y = pyrr.Matrix44.from_y_rotation(self.rotation[1], dtype=float)
+#         rotation_z = pyrr.Matrix44.from_z_rotation(self.rotation[2], dtype=float)
 
-        rotation = pyrr.matrix44.multiply(rotation_x, rotation_y)
-        rotation = pyrr.matrix44.multiply(rotation, rotation_z)
-        model = pyrr.matrix44.multiply(rotation, position)
+#         rotation = pyrr.matrix44.multiply(rotation_x, rotation_y)
+#         rotation = pyrr.matrix44.multiply(rotation, rotation_z)
+#         model = pyrr.matrix44.multiply(rotation, position)
 
-        if not self.VAO:
-            raise Error(f"{self} doesn't have buffers")
+#         if not self.VAO:
+#             raise Error(f"{self} doesn't have buffers")
 
-        glBindVertexArray(self.VAO)
-        glBindTexture(GL_TEXTURE_2D, self.texture_buff)
-        glUniformMatrix4fv(model_loc, 1, GL_FALSE, model)
-        glDrawElements(GL_TRIANGLES, len(self.indices), GL_UNSIGNED_INT, None)
+#         glBindVertexArray(self.VAO)
+#         glBindTexture(GL_TEXTURE_2D, self.texture_buff)
+#         glUniformMatrix4fv(model_loc, 1, GL_FALSE, model)
+#         glDrawElements(GL_TRIANGLES, len(self.indices), GL_UNSIGNED_INT, None)
 
 
 
@@ -237,7 +296,7 @@ class Object:
 
 
 class Camera(Object):
-    def __init__(self, fov:int=45, asp_ratio:float=16/9, near_plane: float=0.1, far_plane:int or float=100, position:tuple or list=(0, 2, 3), clamp:tuple or list=(-90, 90)):
+    def __init__(self, fov:int=60, asp_ratio:float=16/9, near_plane: float=0.1, far_plane:int or float=100, position:tuple or list=(0, 2, 3), clamp:tuple or list=(-90, 90)):
         """"""
         super().__init__(position, rotation=(-90, 0, 0))
         # yaw = y, pitch = x, roll = z
@@ -253,7 +312,7 @@ class Camera(Object):
         # projection matrix
         self.projection = pyrr.matrix44.create_perspective_projection_matrix(fov, asp_ratio, near_plane, far_plane)
         # view matrix
-        self.view = pyrr.matrix44.create_look_at(self.transform.position.astype(dtype=np.int32), pyrr.Vector3([0, 0, 0]), pyrr.Vector3([0, 1, 0]))
+        self.view = pyrr.matrix44.create_look_at(self.transform.position.astype(dtype=np.int32), self.transform.position.astype(dtype=np.int32) + self.front, self.up)
 
 
     def rotate(self, mouse_input: tuple[2] or list[2]):
@@ -373,12 +432,6 @@ class TextureSheet:
         self.images.insert(index, img)
         return img
 
-
-
-def create_buffers():
-    """Create buffers for all objects"""
-    for obj in objects:
-        obj.create_buffers()
 
 
 def render_objects(model_loc):
