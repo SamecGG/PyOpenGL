@@ -136,11 +136,17 @@ class Cube_Renderer:
             nothing, use object functions for manipulation
         """
         self.VAO = None
+        # Cube data
         self.vertices = vertices.flatten().astype(dtype=np.float32)
         self.indices = indices.flatten().astype(dtype=np.uint32)
-        # position.x, position.y, position.z texture index
-        self.instance_data = np.zeros((0, 4))
+
+        # Atlas
         self.texture_atlas = atlas
+
+        # Instance data
+        self.instance_data = np.zeros((0, 5), np.float32)
+        # self.instance_positions = np.zeros((0, 3))
+        # self.instance_textures = np.zeros((0))
 
         # creating Cube buffers
         self.create_buffers()
@@ -188,28 +194,38 @@ class Cube_Renderer:
         """
         # position.x, position.y, position.z texture index
         # to np array conversion
-        position = np.array(position)
-        texture_index = np.array(texture_index)
+        position = np.array(position).reshape((3))
+        texture_offset = np.array(self.texture_atlas.get_position(texture_index)).reshape((2))
 
         # append data to instance data arr
-        data = np.append(position, texture_index).reshape(1, 4)
+        data = np.append(position, texture_offset).reshape(1, 5)
         self.instance_data = np.append(self.instance_data, data, axis=0)
 
 
-    def render_all(self, model_loc, loc_atlas_rows, loc_atlas_offset):
+    def bake_instances(self):
+        self.instance_data_len = len(self.instance_data)
+        self.instance_data = self.instance_data.astype(np.float32).flatten()
+
+        instanceVBO = glGenBuffers(1)
+        glBindBuffer(GL_ARRAY_BUFFER, instanceVBO)
+        glBufferData(GL_ARRAY_BUFFER, self.instance_data.nbytes, self.instance_data, GL_STATIC_DRAW)
+
+        glEnableVertexAttribArray(2)
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, self.instance_data.itemsize * 5, ctypes.c_void_p(0))
+        glVertexAttribDivisor(2, 1) # 1 means, every instance will have it's own translate
+
+        glEnableVertexAttribArray(3)
+        glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, self.instance_data.itemsize * 5, ctypes.c_void_p(12))
+        glVertexAttribDivisor(3, 1) # 1 means, every instance will have it's own uv offset
+
+
+    def render_all(self, model_loc):
         """
         Render object \n
             model_loc: pointer to shader variable
         """
 
-        for obj in self.instance_data:
-            position = pyrr.matrix44.create_from_translation(obj[:3])
-
-            glUniformMatrix4fv(model_loc, 1, GL_FALSE, position)
-            glUniform1f(loc_atlas_rows, self.texture_atlas.rows)
-            glUniform2f(loc_atlas_offset, *self.texture_atlas.get_position(obj[3]))
-
-            glDrawElements(GL_TRIANGLES, len(self.indices), GL_UNSIGNED_INT, None)
+        glDrawElementsInstanced(GL_TRIANGLES, len(self.indices), GL_UNSIGNED_INT, None, self.instance_data_len)
 
 
 

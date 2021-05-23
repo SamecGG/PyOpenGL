@@ -29,10 +29,12 @@ shader = compileProgram(compileShader(shader_vertex, GL_VERTEX_SHADER), compileS
 cube_model = geometry.Cube() 
 cube_instancer = Cube_Renderer(cube_model.cube_map, cube_model.indices)
 
-for x in range(10):
-    for y in range(10):
-        for z in range(10):
-            cube_instancer.instantiate((x, y, z), 1)
+for x in range(20):
+    for y in range(2):
+        for z in range(50):
+            cube_instancer.instantiate((x, y, z), 0)
+
+cube_instancer.bake_instances()
 #endregion
 
 # Player init
@@ -49,11 +51,15 @@ glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 loc_model = glGetUniformLocation(shader, "model")
 loc_proj = glGetUniformLocation(shader, "projection")
 loc_view = glGetUniformLocation(shader, "view")
+loc_move = glGetUniformLocation(shader, "move")
 loc_atlas_rows = glGetUniformLocation(shader, "atlas_rows")
-loc_atlas_offset  = glGetUniformLocation(shader, "atlas_offset")
+
+cube_pos = pyrr.matrix44.create_from_translation(pyrr.Vector3([-1.0, -1.0, -50.0]))
 
 # Load variables to uniform
 glUniformMatrix4fv(loc_proj, 1, GL_FALSE, camera.projection)
+glUniformMatrix4fv(loc_model, 1, GL_FALSE, cube_pos)
+glUniform1f(loc_atlas_rows, cube_instancer.texture_atlas.rows)
 #endregion
 
 #region Bind actions
@@ -134,7 +140,10 @@ while True:
 
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
 
-    cube_instancer.render_all(loc_model, loc_atlas_rows, loc_atlas_offset)
+    move = pyrr.matrix44.create_from_translation(pyrr.Vector3([0, 0, 0]))
+    glUniformMatrix4fv(loc_move, 1, GL_FALSE, move)
+
+    cube_instancer.render_all(loc_model)
 
     glUniformMatrix4fv(loc_view, 1, GL_FALSE, camera.view)
 

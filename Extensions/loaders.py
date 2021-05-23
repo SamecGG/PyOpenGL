@@ -50,14 +50,14 @@ class TextureAtlas:
         img = transform.flip(img, False, True)
         img_width, img_height = img.get_rect().size
         # img_data = image.tostring(img, "RGBA")
-        rows = img_height / img_size
-        columns = img_width / img_size
+        rows = img_height // img_size
+        columns = img_width // img_size
         
         self.atlas = img
         self.rows, self.columns = rows, columns
 
     def get_position(self, index):
         column = index % self.rows
-        row = index/self.rows
+        row = index//self.rows
 
         return float(column/self.rows), float(row/self.rows) 
