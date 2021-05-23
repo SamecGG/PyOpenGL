@@ -27,9 +27,9 @@ in vec2 v_texture;
 
 out vec4 out_color;
 
-uniform sampler2D s_texture;
+uniform sampler2DArray s_texture;
 
 void main()
 {
-    out_color = texture(s_texture, v_texture);
+    out_color = texture(s_texture, vec3(v_texture, 1));
 }

@@ -28,11 +28,6 @@ class Cube:
         self.vertices = np.zeros((8, 3))
         self.cube_map = np.zeros((6, 4, 5))
         self.indices = np.zeros((6, 6))
-        # self.normals = np.array([
-        #     [0, 0, 1], [0, 0, -1],
-        #     [1, 0, 0], [-1, 0, 0],
-        #     [-1, 0, 0], [1, 0, 0]
-        #     ])
 
         self.create_indices()
         self.create_verticies()

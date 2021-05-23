@@ -1,5 +1,6 @@
 from os import stat
 import numpy as np
+from numpy.lib.utils import deprecate
 import pyrr
 
 from OpenGL.GL import *
@@ -122,7 +123,9 @@ class Cube_Instancer:
     def __init__(self, cube_vertices, cube_indices, texture_sheet):
         # Type Data Arrays
         self.object_types = []
-        self.instance_array = np.zeros(shape=(0, 3), dtype=pyrr.Vector3)
+        # Set instacing arrays to textures length
+        self.instance_array = np.zeros((0, 3))
+        self.instance_textures = np.zeros((0), dtype=np.int32)
         self.instance_array_len = 0
 
         # Cube data
@@ -144,21 +147,26 @@ class Cube_Instancer:
 
 
     def create_buffers(self):
-        """Create buffers for all objects"""
-
-#         #vertices
-#         glEnableVertexAttribArray(0)
-#         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertices.itemsize * 5, ctypes.c_void_p(0))
-#         # textures
-#         glEnableVertexAttribArray(1)
-#         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, vertices.itemsize * 5, ctypes.c_void_p(12))
-
-        buffer_count = len(self.object_types)
+        """
+        Create buffers for all objects
+        """
 
         VAO = glGenVertexArrays(1)
         VBO = glGenBuffers(1)
         EBO = glGenBuffers(1)
-        textures = glGenTextures(1)
+        texture = glGenTextures(1)
+
+        #region Texture settings
+        glBindTexture(GL_TEXTURE_2D, texture)
+
+        # Set texture wrapping parameters
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+
+        # Set texture filtering parameters, bylo tu GL_LINEAR 
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+        #endregion
 
         # Cube VAO
         glBindVertexArray(VAO)
@@ -180,30 +188,27 @@ class Cube_Instancer:
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, self.cube_vertices.itemsize * 5, ctypes.c_void_p(12))
 
         # Texure loading
-        for obj_index, obj in enumerate(self.object_types):
-            if buffer_count > 1:
-                loaders.TextureLoader.load(self.texture_sheet.images[obj], textures[obj_index])
-            else:
-                loaders.TextureLoader.load(self.texture_sheet.images[obj], textures)
-        
-        self.textures = textures
+        loaders.TextureAtlasLoader.load(self.texture_sheet.images, self.texture_sheet.img_size, 16, 16)
+
+        self.textures = texture
         self.VAO = VAO
 
 
-    def instantiate(self, position: tuple[3] or list[3]=(0, 0, 0), rotation: tuple[3] or list[3]=(0, 0, 0)):
+    def instantiate(self, position: tuple[3] or list[3]=(0, 0, 0), texture: int=0):
         position = pyrr.Vector3(position)
-        # rotation = pyrr.Vector3(rotation)
-        self.instance_array = np.append(self.instance_array, position)
+
+        self.instance_textures = np.append(self.instance_textures, texture)
+        self.instance_array = np.append(self.instance_array, position.reshape(1, 3), axis=0)
 
 
     def bake_arrays(self):
+        IVBO = glGenBuffers(1)
+
         self.instance_array_len = len(self.instance_array)
         self.instance_array = self.instance_array.astype(np.float32).flatten()
 
-        print(self.instance_array_len, self.instance_array)
-
         # Instance Veretex Buffer Object
-        IVBO = glGenBuffers(1)
+        
         glBindBuffer(GL_ARRAY_BUFFER, IVBO)
         glBufferData(GL_ARRAY_BUFFER, self.instance_array.nbytes, self.instance_array, GL_STATIC_DRAW)
 
@@ -213,60 +218,8 @@ class Cube_Instancer:
 
         self.IVBO = IVBO
 
-        
-      
-# class Mesh_Renderer:
-#     """
-#     Static game object \n
-#     functions:
-#         __init__: intialization
-#         create_buffers: this is called in __init__, if it isn't specified otherwise
-#         render: renders object
-#     """
-#     def __init__(self, vertices: np.array, indices: np.array, texture_img: image=None):
-#         """
-#         Creates object that contains data obout game object \n
-#         parameters:
-#             vertices: vertices of every face
-#             indices: indicies of triangles
-#             texture_img: texture image  
-#             rotation: obj rotation         
-#             position: obj position           
-#             create_buffers: bool, if the buffers should be created
-#             \n
-
-#         returns:
-#             nothing, use object functions for manipulation
-#         """
-#         self.vertices = vertices.flatten().astype(dtype=np.float32)
-#         self.indices = indices.flatten().astype(dtype=np.uint32)
-#         self.texture_buff = None
-#         self.texture_img = None
-
-#         objects.append(self)
-
-    
-#     def render(self, model_loc):
-#         """
-#         Render object \n
-#             model_loc: pointer to shader variable
-#         """
-#         position = pyrr.matrix44.create_from_translation(self.position)
-#         rotation_x = pyrr.Matrix44.from_x_rotation(self.rotation[0], dtype=float)
-#         rotation_y = pyrr.Matrix44.from_y_rotation(self.rotation[1], dtype=float)
-#         rotation_z = pyrr.Matrix44.from_z_rotation(self.rotation[2], dtype=float)
-
-#         rotation = pyrr.matrix44.multiply(rotation_x, rotation_y)
-#         rotation = pyrr.matrix44.multiply(rotation, rotation_z)
-#         model = pyrr.matrix44.multiply(rotation, position)
-
-#         if not self.VAO:
-#             raise Error(f"{self} doesn't have buffers")
-
-#         glBindVertexArray(self.VAO)
-#         glBindTexture(GL_TEXTURE_2D, self.texture_buff)
-#         glUniformMatrix4fv(model_loc, 1, GL_FALSE, model)
-#         glDrawElements(GL_TRIANGLES, len(self.indices), GL_UNSIGNED_INT, None)
+    def render_objects(self):
+        glDrawElementsInstanced(GL_TRIANGLES, len(self.cube_indices), GL_UNSIGNED_INT, None, self.instance_array_len)
 
 
 
@@ -283,15 +236,6 @@ class Object:
 
     def remove_component(self, name: str):
         delattr(self, name)
-
-
-
-# class Singleton(object):
-#     _instance = None
-#     def __new__(class_, *args, **kwargs):
-#         if not isinstance(class_._instance, class_):
-#             class_._instance = object.__new__(class_, *args, **kwargs)
-#         return class_._instance
 
 
 
@@ -360,11 +304,11 @@ class Player(Object):
             player_movement += self.camera.right * self.speed * player_input.x
         if not player_input.z == 0:
             player_movement += self.camera.front * self.speed * player_input.z
+        if not player_input.y == 0:
+            player_movement += Vector3.up * self.speed * player_input.y
             
             
-        #player_input = np.multiply(player_input + , self.speed)
         #TODO: implement jumping
-        #player_input[1] = 0
         mouse_x, mouse_y = mouse_input
         mouse_x *= self.sensitivity
         mouse_y *= -self.sensitivity

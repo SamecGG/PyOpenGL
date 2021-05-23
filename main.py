@@ -31,17 +31,23 @@ texture_sheet = TextureSheet(os.path.abspath('Assets/Textures/minecraft_texture_
 cube_model = geometry.Cube() 
 
 instancer = Cube_Instancer(cube_model.cube_map.flatten().astype(np.float32), cube_model.indices.astype(np.uint32), texture_sheet)
+instancer.add_object_type(1)
 instancer.add_object_type(2)
-# instancer.add_object_type(1)
-# instancer.add_object_type(2)
+instancer.add_object_type(3)
 
 instancer.create_buffers()
 
-# instancer.instantiate((0, 0, 0))
-for x in range(0, 50, 1):
-    for y in range(0, 50, 1):
-        for z in range(0, 50, 1):
-            instancer.instantiate((x, y, z))
+for x in range(0, 4, 1):
+    for y in range(0, 1, 1):
+        for z in range(0, 2, 1):
+            instancer.instantiate((x, y-1, z), 1)
+
+for x in range(0, 4, 1):
+    for y in range(0, 1, 1):
+        for z in range(0, 2, 1):
+            instancer.instantiate((x, y, z), 2)
+
+
 
 print('done')
 
@@ -58,6 +64,10 @@ glEnable(GL_DEPTH_TEST)
 glEnable(GL_BLEND)
 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
+# backface Culling
+# glEnable(GL_CULL_FACE); 
+# glCullFace(GL_BACK);  
+
 # region uniform location link
 model_loc = glGetUniformLocation(shader, "model")
 proj_loc = glGetUniformLocation(shader, "projection")
@@ -65,7 +75,7 @@ view_loc = glGetUniformLocation(shader, "view")
 move_loc = glGetUniformLocation(shader, "move")
 # endregion
 
-cube_pos = pyrr.matrix44.create_from_translation(pyrr.Vector3([0.0, 0.0, -100.0]))
+cube_pos = pyrr.matrix44.create_from_translation(pyrr.Vector3([0.0, 0.0, -10.0]))
 
 glUniformMatrix4fv(proj_loc, 1, GL_FALSE, camera.projection)
 glUniformMatrix4fv(model_loc, 1, GL_FALSE, cube_pos)
@@ -77,6 +87,7 @@ key_backwards = pygame.K_s
 key_left = pygame.K_a
 key_right = pygame.K_d
 key_jump = pygame.K_SPACE
+key_shift = pygame.K_LCTRL
 
 def toggle_mouse(condition):
     global WIN_active
@@ -125,9 +136,10 @@ while True:
 
     player_input = Vector3.isZero(player_input, lambda: pyrr.vector.normalize(player_input))
     
-
     if keys[key_jump]:
         player_input[1] += 1
+    if keys[key_shift]:
+        player_input[1] -= 1
     #endregion
     
     #region Mouse input
@@ -151,7 +163,8 @@ while True:
     # render_objects(model_loc)
 
     glUniformMatrix4fv(view_loc, 1, GL_FALSE, camera.view)
-
+    
+    # instancer.render_objects()
     glDrawElementsInstanced(GL_TRIANGLES, len(instancer.cube_indices), GL_UNSIGNED_INT, None, instancer.instance_array_len)
 
     # Pygame rendering
