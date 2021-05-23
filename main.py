@@ -38,7 +38,7 @@ cube_instancer.bake_instances()
 #endregion
 
 # Player init
-camera = Camera(asp_ratio=WIDTH/HEIGHT)
+camera = Camera(asp_ratio=WIDTH/HEIGHT, position=(0, 4, 3))
 player = Player(camera)
 
 #region OpenGL settings
@@ -47,6 +47,7 @@ glEnable(GL_DEPTH_TEST)
 glEnable(GL_BLEND)
 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
+<<<<<<< HEAD
 # Uniform location link
 loc_model = glGetUniformLocation(shader, "model")
 loc_proj = glGetUniformLocation(shader, "projection")
@@ -69,7 +70,10 @@ key_left = pygame.K_a
 key_right = pygame.K_d
 key_jump = pygame.K_SPACE
 key_shift = pygame.K_LCTRL
+<<<<<<< HEAD
 #endregion
+=======
+>>>>>>> master
 
 #region Mouse toggle
 def toggle_mouse(condition):
