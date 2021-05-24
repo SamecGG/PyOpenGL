@@ -7,9 +7,9 @@ from pygame.locals import *
 
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileProgram, compileShader
-from pyrr.vector import normalize
 
-from engine import Camera, Cube_Renderer, Player, Vector3
+from Extensions.engine import Camera, Cube_Renderer, Mesh_Renderer, Player, Vector3
+from Extensions.engine.chunks import Chunk
 from Extensions import loaders
 from Extensions import geometry
 
@@ -27,14 +27,23 @@ shader = compileProgram(compileShader(shader_vertex, GL_VERTEX_SHADER), compileS
 
 #region Geometry Creation
 cube_model = geometry.Cube() 
-cube_instancer = Cube_Renderer(cube_model.cube_map, cube_model.indices)
+# cube_instancer = Cube_Renderer(cube_model.cube_map, cube_model.indices)
 
-for x in range(20):
-    for y in range(2):
-        for z in range(50):
-            cube_instancer.instantiate((x, y, z), 0)
+# for x in range(16):
+#     for y in range(128):
+#         for z in range(16):
+#             cube_instancer.instantiate((x, y, z), 0)
 
-cube_instancer.bake_instances()
+# cube_instancer.bake_instances()
+
+chunk = Chunk()
+chunk.generate_chunk(10)
+chunk.generate_mesh()
+chunk_instancer = Mesh_Renderer(chunk.mesh_vertices, chunk.mesh_indices, [0])
+
+chunk_instancer.instantiate()
+
+chunk_instancer.bake_instances()
 #endregion
 
 # Player init
@@ -54,12 +63,19 @@ loc_view = glGetUniformLocation(shader, "view")
 loc_move = glGetUniformLocation(shader, "move")
 loc_atlas_rows = glGetUniformLocation(shader, "atlas_rows")
 
-cube_pos = pyrr.matrix44.create_from_translation(pyrr.Vector3([-1.0, -1.0, -50.0]))
+cube_pos = pyrr.matrix44.create_from_translation(pyrr.Vector3([0, 0, -10.0]))
+
+# Backface culling
+glEnable(GL_CULL_FACE)
+glCullFace(GL_BACK)
+
+# Wireframe draw
+glPolygonMode( GL_FRONT_AND_BACK, GL_LINE )
 
 # Load variables to uniform
 glUniformMatrix4fv(loc_proj, 1, GL_FALSE, camera.projection)
 glUniformMatrix4fv(loc_model, 1, GL_FALSE, cube_pos)
-glUniform1f(loc_atlas_rows, cube_instancer.texture_atlas.rows)
+glUniform1f(loc_atlas_rows, chunk_instancer.texture_atlas.rows)
 #endregion
 
 #region Bind actions
@@ -78,6 +94,8 @@ def toggle_mouse(condition):
     pygame.mouse.set_visible(0 if condition else 1)
 
     pygame.event.set_grab(condition)
+    pygame.event.clear()
+        
 
 toggle_mouse(False)
 #endregion
@@ -143,7 +161,7 @@ while True:
     move = pyrr.matrix44.create_from_translation(pyrr.Vector3([0, 0, 0]))
     glUniformMatrix4fv(loc_move, 1, GL_FALSE, move)
 
-    cube_instancer.render_all(loc_model)
+    chunk_instancer.render_all()
 
     glUniformMatrix4fv(loc_view, 1, GL_FALSE, camera.view)
 

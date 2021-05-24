@@ -6,7 +6,6 @@ from OpenGL.GL import *
 from pyrr import vector
 
 from Extensions import loaders
-from pygame import image, Surface, mouse, transform
 from math import sin, cos, radians, floor
 
 
@@ -219,7 +218,121 @@ class Cube_Renderer:
         glVertexAttribDivisor(3, 1) # 1 means, every instance will have it's own uv offset
 
 
-    def render_all(self, model_loc):
+    def render_all(self):
+        """
+        Render object \n
+            model_loc: pointer to shader variable
+        """
+
+        glDrawElementsInstanced(GL_TRIANGLES, len(self.indices), GL_UNSIGNED_INT, None, self.instance_data_len)
+
+
+
+class Mesh_Renderer:
+    """
+    Static game object \n
+    functions:
+        __init__: intialization
+        create_buffers: this is called in __init__, if it isn't specified otherwise
+        render: renders object
+    """
+    def __init__(self, vertices: np.array, indices: np.array, texture_indices: np.array, atlas=TEXTURE_ATLAS):
+        """
+        Creates object that contains data obout game object \n
+        parameters:
+            vertices of cube: vertices of every face
+            indices of cube: indicies of triangles
+            texture_atlas: texture atlas object  
+            \n
+
+        returns:
+            nothing, use object functions for manipulation
+        """
+        self.VAO = None
+        # Cube data
+        self.vertices = vertices.flatten().astype(dtype=np.float32)
+        self.indices = indices.flatten().astype(dtype=np.uint32)
+        self.texture_indices = indices.flatten().astype(dtype=np.uint32)
+
+        # Atlas
+        self.texture_atlas = atlas
+
+        # Instance data
+        # TODO: potentional error
+        self.instance_data = np.zeros((0, 5), np.float32)
+
+        # creating Cube buffers
+        self.create_buffers()
+
+
+    def create_buffers(self):
+        """
+        Creates buffers for object
+        """
+        VAO = glGenVertexArrays(1)
+        VBO = glGenBuffers(1)
+        EBO = glGenBuffers(1)
+
+        # Cube VAO
+        glBindVertexArray(VAO)
+
+        # Cube Vertex Buffer Object
+        glBindBuffer(GL_ARRAY_BUFFER, VBO)
+        glBufferData(GL_ARRAY_BUFFER, self.vertices.nbytes, self.vertices, GL_STATIC_DRAW)
+
+        # Cube Element Buffer Object
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO)
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, self.indices.nbytes, self.indices, GL_STATIC_DRAW)
+
+        # Shader attribs
+        glEnableVertexAttribArray(0)
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, self.vertices.itemsize * 3, ctypes.c_void_p(0))
+
+        # glEnableVertexAttribArray(1)
+        # glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, self.vertices.itemsize * 3, ctypes.c_void_p(12))
+
+        # Atlas texture binding
+        atlas_texture = glGenTextures(1)
+        self.texture_buff = loaders.TextureLoader.load(self.texture_atlas.atlas, atlas_texture)
+
+        # glBindTexture(GL_TEXTURE_2D, self.texture_buff)
+
+        self.VAO = VAO
+
+    
+    def instantiate(self, position:tuple or list=(0, 0, 0), texture_index:int=0):
+        """
+        # Instantiate object into world at position, with texture_index
+        this function just appends instance data to instance data array
+        """
+        # position.x, position.y, position.z texture index
+        # to np array conversion
+        position = np.array(position).reshape((3))
+        texture_offset = np.array(self.texture_atlas.get_position(0)).reshape((2))
+
+        # append data to instance data arr
+        data = np.append(position, texture_offset).reshape(1, 5)
+        self.instance_data = np.append(self.instance_data, data, axis=0)
+
+
+    def bake_instances(self):
+        self.instance_data_len = len(self.instance_data)
+        self.instance_data = self.instance_data.astype(np.float32).flatten()
+
+        instanceVBO = glGenBuffers(1)
+        glBindBuffer(GL_ARRAY_BUFFER, instanceVBO)
+        glBufferData(GL_ARRAY_BUFFER, self.instance_data.nbytes, self.instance_data, GL_STATIC_DRAW)
+
+        glEnableVertexAttribArray(2)
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, self.instance_data.itemsize * 5, ctypes.c_void_p(0))
+        glVertexAttribDivisor(2, 1) # 1 means, every instance will have it's own translate
+
+        glEnableVertexAttribArray(3)
+        glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, self.instance_data.itemsize * 5, ctypes.c_void_p(12))
+        glVertexAttribDivisor(3, 1) # 1 means, every instance will have it's own uv offset
+
+
+    def render_all(self):
         """
         Render object \n
             model_loc: pointer to shader variable
@@ -314,10 +427,6 @@ class Player(Object):
         if not player_input.y == 0:
             player_movement += Vector3.up * self.speed * player_input.y
             
-            
-        #player_input = np.multiply(player_input + , self.speed)
-        #TODO: implement jumping
-        #player_input[1] = 0
         mouse_x, mouse_y = mouse_input
         mouse_x *= self.sensitivity
         mouse_y *= -self.sensitivity

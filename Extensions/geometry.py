@@ -4,10 +4,22 @@ from numpy.core.numeric import indices
 
 
 class Cube:
+    # cube face normals
+    north = np.array([0, 0, -1], dtype=np.int8)
+    south = np.array([0, 0, 1], dtype=np.int8)
+    east = np.array([1, 0, 0], dtype=np.int8)
+    west = np.array([-1, 0, 0], dtype=np.int8)
+    up = np.array([0, 1, 0], dtype=np.int8)
+    down = np.array([0, -1, 0], dtype=np.int8)
+
+    # cube face normal list
+    faces_normals = np.array([south, north, east, west, down, up])
+    # faces_normals = np.array([south])
+
     #region Maps
     vertex_face_map = np.array([
         0, 1, 2, 3,
-        4, 5, 6, 7,
+        7, 6, 5, 4,
 
         5, 6, 2, 1,
         7, 4, 0, 3, 
