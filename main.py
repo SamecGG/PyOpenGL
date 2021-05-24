@@ -26,16 +26,6 @@ shader = compileProgram(compileShader(shader_vertex, GL_VERTEX_SHADER), compileS
 #endregion
 
 #region Geometry Creation
-cube_model = geometry.Cube() 
-# cube_instancer = Cube_Renderer(cube_model.cube_map, cube_model.indices)
-
-# for x in range(16):
-#     for y in range(128):
-#         for z in range(16):
-#             cube_instancer.instantiate((x, y, z), 0)
-
-# cube_instancer.bake_instances()
-
 chunk = Chunk()
 chunk.generate_chunk(10)
 chunk.generate_mesh()
@@ -63,7 +53,7 @@ loc_view = glGetUniformLocation(shader, "view")
 loc_move = glGetUniformLocation(shader, "move")
 loc_atlas_rows = glGetUniformLocation(shader, "atlas_rows")
 
-cube_pos = pyrr.matrix44.create_from_translation(pyrr.Vector3([0, 0, -10.0]))
+cube_pos = pyrr.matrix44.create_from_translation(pyrr.Vector3([-8, -3.0, -8]))
 
 # Backface culling
 glEnable(GL_CULL_FACE)
