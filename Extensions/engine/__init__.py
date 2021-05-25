@@ -252,7 +252,6 @@ class Mesh_Renderer:
         # Cube data
         self.vertices = vertices.flatten().astype(dtype=np.float32)
         self.indices = indices.flatten().astype(dtype=np.uint32)
-        self.texture_indices = indices.flatten().astype(dtype=np.uint32)
 
         # Atlas
         self.texture_atlas = atlas
@@ -286,21 +285,19 @@ class Mesh_Renderer:
 
         # Shader attribs
         glEnableVertexAttribArray(0)
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, self.vertices.itemsize * 3, ctypes.c_void_p(0))
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, self.vertices.itemsize * 5, ctypes.c_void_p(0))
 
-        # glEnableVertexAttribArray(1)
-        # glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, self.vertices.itemsize * 3, ctypes.c_void_p(12))
+        glEnableVertexAttribArray(1)
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, self.vertices.itemsize * 5, ctypes.c_void_p(12))
 
         # Atlas texture binding
         atlas_texture = glGenTextures(1)
         self.texture_buff = loaders.TextureLoader.load(self.texture_atlas.atlas, atlas_texture)
 
-        # glBindTexture(GL_TEXTURE_2D, self.texture_buff)
-
         self.VAO = VAO
 
     
-    def instantiate(self, position:tuple or list=(0, 0, 0), texture_index:int=0):
+    def instantiate(self, position:tuple or list=(0, 0, 0)):
         """
         # Instantiate object into world at position, with texture_index
         this function just appends instance data to instance data array

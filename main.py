@@ -60,7 +60,7 @@ glEnable(GL_CULL_FACE)
 glCullFace(GL_BACK)
 
 # Wireframe draw
-glPolygonMode( GL_FRONT_AND_BACK, GL_LINE )
+# glPolygonMode( GL_FRONT_AND_BACK, GL_LINE )
 
 # Load variables to uniform
 glUniformMatrix4fv(loc_proj, 1, GL_FALSE, camera.projection)
