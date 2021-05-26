@@ -13,7 +13,7 @@ class Cube:
     down = np.array([0, -1, 0], dtype=np.int8)
 
     # cube face normal list
-    faces_normals = np.array([south, north, east, west, down, up])
+    normals = np.array([south, north, east, west, down, up])
     # faces_normals = np.array([south])
 
     #region Maps

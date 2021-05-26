@@ -8,10 +8,9 @@ from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileProgram, compileShader
 
-from Extensions.engine import Camera, Cube_Renderer, Mesh_Renderer, Player, Vector3
+from Extensions.engine import Camera, Chunk_Renderer, Player, TEXTURE_ATLAS, Vector3
 from Extensions.engine.chunks import Chunk
 from Extensions import loaders
-from Extensions import geometry
 
 #region Pygam Init
 pygame.init()
@@ -21,23 +20,19 @@ WIN_active = False
 #endregion
 
 #region Shader Init
-shader_vertex, shader_fragment = loaders.ShaderLoader.load(os.path.abspath("Assets/Shaders/basic.shader"))
-shader = compileProgram(compileShader(shader_vertex, GL_VERTEX_SHADER), compileShader(shader_fragment, GL_FRAGMENT_SHADER))
+shader_vertex, shader_geometry, shader_fragment = loaders.ShaderLoader.load(os.path.abspath("Assets/Shaders/basic.shader"))
+shader = compileProgram(compileShader(shader_vertex, GL_VERTEX_SHADER), compileShader(shader_geometry, GL_GEOMETRY_SHADER), compileShader(shader_fragment, GL_FRAGMENT_SHADER))
 #endregion
 
 #region Geometry Creation
 chunk = Chunk()
 chunk.generate_chunk(10)
 chunk.generate_mesh()
-chunk_instancer = Mesh_Renderer(chunk.mesh_vertices, chunk.mesh_indices, [0])
-
-chunk_instancer.instantiate()
-
-chunk_instancer.bake_instances()
+chunk_instancer = Chunk_Renderer(chunk.vertices, TEXTURE_ATLAS)
 #endregion
 
 # Player init
-camera = Camera(asp_ratio=WIDTH/HEIGHT)
+camera = Camera(asp_ratio=WIDTH/HEIGHT, position=(0, 20, 0))
 player = Player(camera)
 
 #region OpenGL settings
@@ -47,13 +42,11 @@ glEnable(GL_BLEND)
 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
 # Uniform location link
-loc_model = glGetUniformLocation(shader, "model")
-loc_proj = glGetUniformLocation(shader, "projection")
 loc_view = glGetUniformLocation(shader, "view")
-loc_move = glGetUniformLocation(shader, "move")
+loc_proj = glGetUniformLocation(shader, "projection")
 loc_atlas_rows = glGetUniformLocation(shader, "atlas_rows")
-
-cube_pos = pyrr.matrix44.create_from_translation(pyrr.Vector3([-8, -3.0, -8]))
+loc_chunk_pos = glGetUniformLocation(shader, "chunk_position")
+loc_sampler = glGetUniformLocation(shader, "s_texture")
 
 # Backface culling
 glEnable(GL_CULL_FACE)
@@ -64,7 +57,7 @@ glCullFace(GL_BACK)
 
 # Load variables to uniform
 glUniformMatrix4fv(loc_proj, 1, GL_FALSE, camera.projection)
-glUniformMatrix4fv(loc_model, 1, GL_FALSE, cube_pos)
+glUniform3fv(loc_chunk_pos, 1, GL_FALSE, [0.0, 0.0, 0.0])
 glUniform1f(loc_atlas_rows, chunk_instancer.texture_atlas.rows)
 #endregion
 
@@ -147,9 +140,6 @@ while True:
     #endregion
 
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
-
-    move = pyrr.matrix44.create_from_translation(pyrr.Vector3([0, 0, 0]))
-    glUniformMatrix4fv(loc_move, 1, GL_FALSE, move)
 
     chunk_instancer.render_all()
 
