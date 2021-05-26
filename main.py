@@ -26,9 +26,9 @@ shader = compileProgram(compileShader(shader_vertex, GL_VERTEX_SHADER), compileS
 
 #region Geometry Creation
 chunk = Chunk()
-chunk.generate_chunk(10)
+chunk.generate_chunk(12)
 chunk.generate_mesh()
-chunk_instancer = Chunk_Renderer(chunk.vertices, TEXTURE_ATLAS)
+chunk_instancer = Chunk_Renderer(chunk.vertices, (16, 0, 16), TEXTURE_ATLAS)
 #endregion
 
 # Player init
@@ -57,7 +57,7 @@ glCullFace(GL_BACK)
 
 # Load variables to uniform
 glUniformMatrix4fv(loc_proj, 1, GL_FALSE, camera.projection)
-glUniform3fv(loc_chunk_pos, 1, GL_FALSE, [0.0, 0.0, 0.0])
+glUniform3f(loc_chunk_pos, 0.0, 0.0, 0.0)
 glUniform1f(loc_atlas_rows, chunk_instancer.texture_atlas.rows)
 #endregion
 
@@ -141,7 +141,7 @@ while True:
 
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
 
-    chunk_instancer.render_all()
+    chunk_instancer.render_all(loc_chunk_pos)
 
     glUniformMatrix4fv(loc_view, 1, GL_FALSE, camera.view)
 

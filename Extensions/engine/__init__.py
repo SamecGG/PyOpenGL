@@ -122,7 +122,7 @@ class Chunk_Renderer:
         create_buffers: this is called in __init__, if it isn't specified otherwise
         render: renders object
     """
-    def __init__(self, vertices: np.array=np.array([0, 0, 0]), atlas=TEXTURE_ATLAS):
+    def __init__(self, vertices: np.array, position:tuple[3] or list[3], atlas=TEXTURE_ATLAS):
         """
         Creates object that contains data obout game object \n
         parameters:
@@ -135,8 +135,8 @@ class Chunk_Renderer:
             nothing, use object functions for manipulation
         """
         self.VAO = None
-        # Cube data
         self.vertices = vertices.flatten().astype(dtype=np.float32)
+        self.position = position
 
         # Atlas
         self.texture_atlas = atlas
@@ -149,7 +149,6 @@ class Chunk_Renderer:
         """
         Creates buffers for object
         """
-        print(self.vertices)
 
         VBO = glGenBuffers(1)
 
@@ -175,11 +174,12 @@ class Chunk_Renderer:
         self.texture_buff = loaders.TextureLoader.load(self.texture_atlas.atlas, atlas_texture)
 
 
-    def render_all(self):
+    def render_all(self, loc_chunk_pos):
         """
         Render object \n
             model_loc: pointer to shader variable
         """
+        glUniform3f(loc_chunk_pos, *self.position)
         glDrawArrays(GL_POINTS, 0, self.vertices.nbytes // (4 * 6))
         # glDrawElementsInstanced(GL_TRIANGLES, len(self.indices), GL_UNSIGNED_INT, None, self.instance_data_len)
 
@@ -245,6 +245,9 @@ class Camera(Object):
         
         x = self.transform.position + pyrr.Vector3(self.front)
         self.view = pyrr.matrix44.create_look_at(self.transform.position, x, self.up)
+
+    def raycast_chunk(self, ray_length=1):
+        pass
 
 
 

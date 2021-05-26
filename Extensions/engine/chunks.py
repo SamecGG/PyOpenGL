@@ -1,5 +1,7 @@
 import sys
 
+from numpy.core.shape_base import block
+
 sys.path.append("..\Extensions")
 from geometry import Cube
 from engine import TEXTURE_ATLAS
@@ -19,12 +21,12 @@ BlockTypes = {
 
 
 class Chunk:
-    CHUNK_SIZE = Vector3([16, 11, 16], dtype=uint8)
+    CHUNK_SIZE = Vector3([16, 30, 16], dtype=uint8)
     CUBE = Cube()
     CUBE_FACE_VERTICES = CUBE.cube_map
     CUBE_FACE_INDICES = CUBE.create_indices()
 
-    def __init__(self, chunk_position: tuple[2] or list[2] = (0, 0), atlas=TEXTURE_ATLAS):
+    def __init__(self, chunk_position: tuple[3] or list[3] = (0, 0, 0), atlas=TEXTURE_ATLAS):
         self.chunk_position = array(chunk_position)
 
         self.atlas = atlas
@@ -48,6 +50,7 @@ class Chunk:
 
                     chunk_data = append(chunk_data, data)
 
+        print(chunk_data)
         self.chunk_data = chunk_data
 
 
@@ -75,6 +78,9 @@ class Chunk:
                     if block_type:
                         block_type_array = BlockTypes[block_type]
 
+                    if block_type == 0:
+                        continue
+
                     # check for each face if is exposed (next to 0 or out of limit)
                     for face_index in range(0, 6):
                         face_normal = Cube.normals[face_index]
@@ -82,6 +88,7 @@ class Chunk:
 
                         if 0 <= check_position.x < Chunk.CHUNK_SIZE.x and 0 <= check_position.y < Chunk.CHUNK_SIZE.y and 0 <= check_position.z < Chunk.CHUNK_SIZE.z:
                             block_data = self.chunk_data[check_position.x * Chunk.CHUNK_SIZE.y * Chunk.CHUNK_SIZE.z + check_position.y * Chunk.CHUNK_SIZE.z + check_position.z]
+
                             if block_data == 0:
                                 self.generate_face(block_position, face_index, block_type_array[face_index])
                         else:

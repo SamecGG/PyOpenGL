@@ -5,8 +5,6 @@ layout(location = 0) in vec3 a_position;
 layout(location = 1) in float a_index;
 layout(location = 2) in vec2 a_textue_offset;
 
-uniform vec3 chunk_position;
-
 out VS_OUT {
     float v_index;
     vec2 v_textue_offset;
@@ -19,6 +17,8 @@ void main()
     vs_out.v_index = a_index;
     vs_out.v_textue_offset = a_textue_offset;
 }
+
+
 
 
 //shader geometry
@@ -36,6 +36,7 @@ out vec2 uv;
 
 uniform mat4 projection;
 uniform mat4 view;
+uniform vec3 chunk_position;
 uniform float atlas_rows;
 
 mat4 quad = mat4(
@@ -67,30 +68,34 @@ mat3 rot_z = mat3(
 
 int index = int(gs_in[0].v_index);
 
+
+
 void createVertex(vec3 offset)
 {   
     offset *= 0.5;
-    vec4 actualOffset = vec4(offset * rot_z, 0.0);
+    vec3 originalPosition = vec3(offset);
+    vec4 actualOffset = vec4(originalPosition * rot_z, 0.0);
     switch(index) {
     case 0:
         break;
     case 2:
-        actualOffset = vec4(offset * rot_y * rot_x, 0.0);
+        actualOffset = vec4(originalPosition * rot_y * rot_x, 0.0);
         break;
     case 4:
-        actualOffset = vec4(offset * rot_x, 0.0);
+        actualOffset =  vec4(originalPosition * rot_x, 0.0);
         break;
     case 1:
-        actualOffset = vec4(offset * rot_x * rot_x * rot_z, 0.0);
+        actualOffset =  vec4(originalPosition * rot_x * rot_x * rot_z, 0.0);
         break;
     case 3:
-        actualOffset = vec4(offset * rot_y * rot_y * rot_y * rot_x * rot_x * rot_x, 0.0);
+        actualOffset =  vec4(originalPosition * rot_y * rot_y * rot_y * rot_x * rot_x * rot_x, 0.0);
         break;
     case 5:
-        actualOffset = vec4(offset * rot_x * rot_x * rot_x, 0.0);
+        actualOffset =  vec4(originalPosition * rot_x * rot_x * rot_x, 0.0);
         break;
     }
-    vec4 worldPosition = gl_in[0].gl_Position + actualOffset;
+
+    vec4 worldPosition = gl_in[0].gl_Position + actualOffset + vec4(chunk_position, 0.0);
     gl_Position = projection * view * worldPosition;
     EmitVertex();
 }
@@ -110,6 +115,8 @@ void main()
 
     EndPrimitive();
 }
+
+
 
 
 //shader fragment
