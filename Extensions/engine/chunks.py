@@ -1,14 +1,14 @@
+from posixpath import abspath
 import sys
-
-from numpy.core.shape_base import block
 
 sys.path.append("..\Extensions")
 from geometry import Cube
-from engine import TEXTURE_ATLAS
 
-from pyrr import Vector3, quaternion
+from os import makedirs
+from os.path import abspath, exists, join, isfile
+from pyrr import Vector3
 from numpy import float16, uint8
-from numpy import zeros, array, append
+from numpy import zeros, array, append, save, load
 
 
 
@@ -16,33 +16,35 @@ BlockTypes = {
     0: [],
     1: [3, 3, 3, 3, 2, 0],
 }
-    
+
+WORLD_PATH = abspath('Worlds/1st_world/')
+if not exists(WORLD_PATH):
+    makedirs(WORLD_PATH)
 
 
 
 class Chunk:
-    CHUNK_SIZE = Vector3([16, 30, 16], dtype=uint8)
+    CHUNK_SIZE = Vector3([16, 128, 16], dtype=uint8)
+    CHUNK_SIZE_yz = CHUNK_SIZE.y * CHUNK_SIZE.z
     CUBE = Cube()
-    CUBE_FACE_VERTICES = CUBE.cube_map
-    CUBE_FACE_INDICES = CUBE.create_indices()
 
-    def __init__(self, chunk_position: tuple[3] or list[3] = (0, 0, 0), atlas=TEXTURE_ATLAS):
-        self.chunk_position = array(chunk_position)
+    def __init__(self, atlas, chunk_position: tuple[3] or list[3] = (0, 0, 0)):
+        self.position = array(chunk_position)
 
         self.atlas = atlas
         self.vertices = zeros(0, float16)
+        self.chunk_data = zeros(0)
 
 
-    def generate_chunk(self, height):
+    def generate_chunk(self, height: int or float):
         height = min(height, Chunk.CHUNK_SIZE.y)
         chunk_data = zeros(0)
-        # chunk_data_textures = zeros(0)
 
         for x in range(Chunk.CHUNK_SIZE.x):
             for y in range(Chunk.CHUNK_SIZE.y):
                 for z in range(Chunk.CHUNK_SIZE.z):
                     if y < height:
-                        # append block - 1
+                        # append block - block type (default: 1)
                         data = 1
                     else:
                         # append air - 0
@@ -50,17 +52,17 @@ class Chunk:
 
                     chunk_data = append(chunk_data, data)
 
-        print(chunk_data)
         self.chunk_data = chunk_data
 
+    @property
+    def grid_position(self):
+        return self.position // Chunk.CHUNK_SIZE
 
     @staticmethod
     def data_index_to_position(index):
-        yz_size = Chunk.CHUNK_SIZE.y * Chunk.CHUNK_SIZE.z
-
-        x = index // yz_size
+        x = index // Chunk.CHUNK_SIZE_yz
         y = index // Chunk.CHUNK_SIZE.z
-        z = index % yz_size
+        z = index % Chunk.CHUNK_SIZE_yz
 
         return x, y, z
 
@@ -74,7 +76,7 @@ class Chunk:
                 for z in range(Chunk.CHUNK_SIZE.z):
                     # block variables
                     block_position = Vector3([x, y, z])
-                    block_type = self.chunk_data[block_position.x * Chunk.CHUNK_SIZE.y * Chunk.CHUNK_SIZE.z + block_position.y * Chunk.CHUNK_SIZE.z + block_position.z]
+                    block_type = self.chunk_data[block_position.x * Chunk.CHUNK_SIZE_yz + block_position.y * Chunk.CHUNK_SIZE.z + block_position.z]
                     if block_type:
                         block_type_array = BlockTypes[block_type]
 
@@ -87,7 +89,7 @@ class Chunk:
                         check_position = block_position + face_normal
 
                         if 0 <= check_position.x < Chunk.CHUNK_SIZE.x and 0 <= check_position.y < Chunk.CHUNK_SIZE.y and 0 <= check_position.z < Chunk.CHUNK_SIZE.z:
-                            block_data = self.chunk_data[check_position.x * Chunk.CHUNK_SIZE.y * Chunk.CHUNK_SIZE.z + check_position.y * Chunk.CHUNK_SIZE.z + check_position.z]
+                            block_data = self.chunk_data[check_position.x * Chunk.CHUNK_SIZE_yz + check_position.y * Chunk.CHUNK_SIZE.z + check_position.z]
 
                             if block_data == 0:
                                 self.generate_face(block_position, face_index, block_type_array[face_index])
@@ -96,11 +98,37 @@ class Chunk:
 
 
     def generate_face(self, block_position, face_index, texture:int):
-        # block_pos, normal, texture
-        normal = Cube.normals[face_index]
-
         # block_pos-3 places(can be converted to 1 number), face_index-1place, atlas_offset-2 places
         data = [*(block_position), face_index, *self.atlas.get_position(texture)]
         data = array(data, dtype=float16)
 
         self.vertices = append(self.vertices, data)
+
+
+
+class ChunkManager:
+    FAILED = -1
+    SUCCESS = 0
+
+    @staticmethod
+    def save(position: tuple[3] or list[3], data):
+        with open(join(WORLD_PATH, f'{position[0]}_{position[2]}.npy'), 'w') as f:
+            save(f, data)
+            return ChunkManager.SUCCESS
+
+
+    @staticmethod
+    def load(position: tuple[3] or list[3], atlas):
+        file_path = join(WORLD_PATH, f'{position[0]}_{position[2]}.npy')
+        chunk = Chunk(atlas, position * Chunk.CHUNK_SIZE)
+
+        if not exists(file_path):
+            # create chunk
+            chunk.generate_chunk(10)
+        else:
+            with open(file_path, 'r') as f:
+                data = load(f)
+                chunk.chunk_data = data
+        
+        chunk.generate_mesh()
+        return chunk

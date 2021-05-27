@@ -1,3 +1,4 @@
+from Extensions.engine.chunks import Chunk, ChunkManager
 from os.path import abspath
 import numpy as np
 import pyrr
@@ -114,35 +115,101 @@ class Transform:
 
 
 
-class Chunk_Renderer:
+class ChunkRenderer:
     """
-    Static game object \n
+    Storing array of active chunks \n
     functions:
         __init__: intialization
         create_buffers: this is called in __init__, if it isn't specified otherwise
         render: renders object
     """
-    def __init__(self, vertices: np.array, position:tuple[3] or list[3], atlas=TEXTURE_ATLAS):
+    ACTIVE_AREA_EDGE = 3
+    ACTIVE_AREA_SIZE = pyrr.Vector3([ACTIVE_AREA_EDGE, 1, ACTIVE_AREA_EDGE])
+    ACTIVE_AREA_HALF = (ACTIVE_AREA_SIZE - 1) // 2
+    ACTIVE_AREA_yz = ACTIVE_AREA_SIZE.y * ACTIVE_AREA_SIZE.z 
+    ACTIVE_AREA_INDEX_VECTOR = pyrr.Vector3([ACTIVE_AREA_yz, ACTIVE_AREA_SIZE.z, 1])
+
+    def __init__(self, position:tuple[3] or list[3]=(0, 0, 0), atlas=TEXTURE_ATLAS):
         """
-        Creates object that contains data obout game object \n
+        Creates object that contains data about active chunks \n
         parameters:
-            vertices of cube: vertices of every face
-            indices of cube: indicies of triangles
+            position: 0, 0 for chunks
             texture_atlas: texture atlas object  
             \n
 
         returns:
             nothing, use object functions for manipulation
         """
-        self.VAO = None
-        self.vertices = vertices.flatten().astype(dtype=np.float32)
-        self.position = position
+        position = pyrr.Vector3(position)
+        array_size = ChunkRenderer.ACTIVE_AREA_SIZE.x * ChunkRenderer.ACTIVE_AREA_SIZE.y * ChunkRenderer.ACTIVE_AREA_SIZE.z
+
+        self.VBOs = np.zeros(array_size, int)
+
+        self.chunks = np.zeros(array_size, Chunk)
+        self.start_pos = position
+        self.relative_pos = pyrr.Vector3([0, 0, 0])
 
         # Atlas
         self.texture_atlas = atlas
 
-        # creating Cube buffers
-        self.create_buffers()
+        # Atlas texture binding
+        atlas_texture = glGenTextures(1)
+        self.texture_buff = loaders.TextureLoader.load(self.texture_atlas.atlas, atlas_texture)
+
+
+    def load_chunks_at_position(self, position:tuple[3] or list[3]):
+        # unload old chunks
+        for chunk in self.chunks:
+            if not chunk:
+                continue
+
+            self.remove_chunk(chunk)
+
+        # load new chunks
+        position = pyrr.Vector3(position) // Chunk.CHUNK_SIZE
+        self.relative_pos = position
+        
+        for i, chunk in enumerate(self.chunks):
+            x, z = i // ChunkRenderer.ACTIVE_AREA_SIZE.x, i % ChunkRenderer.ACTIVE_AREA_SIZE.z
+
+            self.add_chunk(ChunkManager.load((x, 0, z), self.texture_atlas))
+
+
+    def add_chunk(self, chunk: Chunk):
+        chunk.vertices = chunk.vertices.astype(dtype=np.float32)
+        chunk_relative_pos = chunk.grid_position + self.relative_pos
+        index = chunk_relative_pos.x * ChunkRenderer.ACTIVE_AREA_SIZE.z + chunk_relative_pos.z
+        print(chunk.grid_position, chunk_relative_pos)
+
+        self.chunks[index] = chunk
+
+
+    def remove_chunk(self, chunk: Chunk):
+        # save chunk to file
+        ChunkManager.save(chunk.grid_position, chunk.chunk_data)
+        # unbind buffers
+        glBindBuffer(0, self.VBOs[chunk.grid_position])
+
+
+    def load_dir(self, direction:tuple[2] or list[2]):
+        """
+        Unload chunks behind and load chunks in the direction
+        """
+        slice = self.chunks[-direction[0], :, -direction[1]]
+
+        # unload old chunks
+        for chunk in slice:
+            self.remove_chunk(chunk)
+
+        self.relative_pos += direction
+
+        # load_new_chunk_data
+        new_chunk_count = (abs(direction[0]) + abs(direction[1])) * ChunkRenderer.ACTIVE_AREA_EDGE
+
+        for index in range(new_chunk_count):
+            x, z = index // ChunkRenderer.ACTIVE_AREA_EDGE, index % ChunkRenderer.ACTIVE_AREA_EDGE
+            print("X, Z: ", x, z, index)
+            self.chunks[x, 0, z] = ChunkManager.load(x, 0, z)
 
 
     def create_buffers(self):
@@ -150,28 +217,32 @@ class Chunk_Renderer:
         Creates buffers for object
         """
 
-        VBO = glGenBuffers(1)
+        VBO = glGenBuffers(len(self.chunks))
 
-        # Points Vertex Buffer Object
-        glBindBuffer(GL_ARRAY_BUFFER, VBO)
-        glBufferData(GL_ARRAY_BUFFER, self.vertices.nbytes, self.vertices, GL_STATIC_DRAW)
+        for i, chunk in enumerate(self.chunks):
+            if chunk == 0:
+                continue
 
-        # VBO attribs
-        # Poisiton
-        glEnableVertexAttribArray(0)
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, self.vertices.itemsize * 6, ctypes.c_void_p(0))
+            # Points Vertex Buffer Object
+            glBindBuffer(GL_ARRAY_BUFFER, VBO[i])
+            glBufferData(GL_ARRAY_BUFFER, chunk.vertices.nbytes, chunk.vertices, GL_STATIC_DRAW)
 
-        # Normal - face index
-        glEnableVertexAttribArray(1)
-        glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, self.vertices.itemsize * 6, ctypes.c_void_p(12))
+            # VBO attribs
+            vertex_size = chunk.vertices.itemsize * 6
 
-        # Texture offset
-        glEnableVertexAttribArray(2)
-        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, self.vertices.itemsize * 6, ctypes.c_void_p(16))
+            # Poisiton
+            glEnableVertexAttribArray(0)
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertex_size, ctypes.c_void_p(0))
 
-        # Atlas texture binding
-        atlas_texture = glGenTextures(1)
-        self.texture_buff = loaders.TextureLoader.load(self.texture_atlas.atlas, atlas_texture)
+            # Normal - face index
+            glEnableVertexAttribArray(1)
+            glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, vertex_size, ctypes.c_void_p(12))
+
+            # Texture offset
+            glEnableVertexAttribArray(2)
+            glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, vertex_size, ctypes.c_void_p(16))
+
+            self.VBOs[i] = VBO[i]
 
 
     def render_all(self, loc_chunk_pos):
@@ -179,9 +250,18 @@ class Chunk_Renderer:
         Render object \n
             model_loc: pointer to shader variable
         """
-        glUniform3f(loc_chunk_pos, *self.position)
-        glDrawArrays(GL_POINTS, 0, self.vertices.nbytes // (4 * 6))
-        # glDrawElementsInstanced(GL_TRIANGLES, len(self.indices), GL_UNSIGNED_INT, None, self.instance_data_len)
+        print(self.chunks)
+        print(self.VBOs)
+
+        for i, VBO in enumerate(self.VBOs):
+            if not VBO:
+                continue
+
+            chunk = self.chunks[i]
+            glBindBuffer(GL_ARRAY_BUFFER, VBO)
+
+            glUniform3f(loc_chunk_pos, *(self.start_pos + chunk.position))
+            glDrawArrays(GL_POINTS, 0, chunk.vertices.nbytes // (4 * 6))
 
 
 

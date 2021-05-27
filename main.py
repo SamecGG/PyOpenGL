@@ -8,7 +8,7 @@ from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileProgram, compileShader
 
-from Extensions.engine import Camera, Chunk_Renderer, Player, TEXTURE_ATLAS, Vector3
+from Extensions.engine import Camera, ChunkRenderer, Player, TEXTURE_ATLAS, Vector3
 from Extensions.engine.chunks import Chunk
 from Extensions import loaders
 
@@ -24,11 +24,16 @@ shader_vertex, shader_geometry, shader_fragment = loaders.ShaderLoader.load(os.p
 shader = compileProgram(compileShader(shader_vertex, GL_VERTEX_SHADER), compileShader(shader_geometry, GL_GEOMETRY_SHADER), compileShader(shader_fragment, GL_FRAGMENT_SHADER))
 #endregion
 
+print(glGenBuffers(1))
+
 #region Geometry Creation
-chunk = Chunk()
+chunk = Chunk(TEXTURE_ATLAS)
 chunk.generate_chunk(12)
 chunk.generate_mesh()
-chunk_instancer = Chunk_Renderer(chunk.vertices, (16, 0, 16), TEXTURE_ATLAS)
+
+chunk_instancer = ChunkRenderer((-16, 0, -16))
+chunk_instancer.load_chunks_at_position((0, 0, 0))
+chunk_instancer.create_buffers()
 #endregion
 
 # Player init
