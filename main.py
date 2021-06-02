@@ -9,8 +9,12 @@ from OpenGL.GL import *
 from OpenGL.GL.shaders import compileProgram, compileShader
 
 from Extensions.engine import Camera, ChunkRenderer, Player, TEXTURE_ATLAS, Vector3
-from Extensions.engine.chunks import Chunk
 from Extensions import loaders
+import chunks
+import time
+
+start_tick = time.time() * 1000
+print(start_tick)
 
 #region Pygam Init
 pygame.init()
@@ -24,12 +28,13 @@ shader_vertex, shader_geometry, shader_fragment = loaders.ShaderLoader.load(os.p
 shader = compileProgram(compileShader(shader_vertex, GL_VERTEX_SHADER), compileShader(shader_geometry, GL_GEOMETRY_SHADER), compileShader(shader_fragment, GL_FRAGMENT_SHADER))
 #endregion
 
-print(glGenBuffers(1))
+# print(glGenBuffers(1))
 
 #region Geometry Creation
-chunk = Chunk(TEXTURE_ATLAS)
-chunk.generate_chunk(12)
-chunk.generate_mesh()
+chunk = chunks.Chunk(TEXTURE_ATLAS.rows)
+chunk.generate_chunk()
+# print(chunk.chunk_data)
+chunk.generate_mesh(chunk.chunk_data)
 
 chunk_instancer = ChunkRenderer((-16, 0, -16))
 chunk_instancer.load_chunks_at_position((0, 0, 0))
@@ -37,7 +42,7 @@ chunk_instancer.create_buffers()
 #endregion
 
 # Player init
-camera = Camera(asp_ratio=WIDTH/HEIGHT, position=(0, 20, 0))
+camera = Camera(asp_ratio=WIDTH/HEIGHT, position=(0, 20, 0), chunk_renderer=chunk_instancer)
 player = Player(camera)
 
 #region OpenGL settings

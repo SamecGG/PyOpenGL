@@ -1,4 +1,4 @@
-from Extensions.engine.chunks import Chunk, ChunkManager
+import chunks
 from os.path import abspath
 import numpy as np
 import pyrr
@@ -8,6 +8,8 @@ from pyrr import vector
 
 from Extensions import loaders
 from math import sin, cos, radians, floor
+
+import chunks
 
 
 
@@ -141,11 +143,11 @@ class ChunkRenderer:
             nothing, use object functions for manipulation
         """
         position = pyrr.Vector3(position)
-        array_size = ChunkRenderer.ACTIVE_AREA_SIZE.x * ChunkRenderer.ACTIVE_AREA_SIZE.y * ChunkRenderer.ACTIVE_AREA_SIZE.z
+        array_size = ChunkRenderer.ACTIVE_AREA_SIZE.x * ChunkRenderer.ACTIVE_AREA_SIZE.z
 
         self.VBOs = np.zeros(array_size, int)
 
-        self.chunks = np.zeros(array_size, Chunk)
+        self.chunks = np.zeros(array_size, chunks.Chunk)
         self.start_pos = position
         self.relative_pos = pyrr.Vector3([0, 0, 0])
 
@@ -166,50 +168,61 @@ class ChunkRenderer:
             self.remove_chunk(chunk)
 
         # load new chunks
-        position = pyrr.Vector3(position) // Chunk.CHUNK_SIZE
+        position = pyrr.Vector3(position) // pyrr.Vector3([16, 64, 16])
         self.relative_pos = position
         
         for i, chunk in enumerate(self.chunks):
             x, z = i // ChunkRenderer.ACTIVE_AREA_SIZE.x, i % ChunkRenderer.ACTIVE_AREA_SIZE.z
 
-            self.add_chunk(ChunkManager.load((x, 0, z), self.texture_atlas))
+            self.add_chunk(chunks.load((x, 0, z), self.texture_atlas))
 
 
-    def add_chunk(self, chunk: Chunk):
+    def add_chunk(self, chunk: chunks.Chunk):
         chunk.vertices = chunk.vertices.astype(dtype=np.float32)
-        chunk_relative_pos = chunk.grid_position + self.relative_pos
+        chunk_relative_pos = chunk.position + self.relative_pos
         index = chunk_relative_pos.x * ChunkRenderer.ACTIVE_AREA_SIZE.z + chunk_relative_pos.z
-        print(chunk.grid_position, chunk_relative_pos)
 
         self.chunks[index] = chunk
 
 
-    def remove_chunk(self, chunk: Chunk):
+    def remove_chunk(self, chunk: chunks.Chunk):
         # save chunk to file
-        ChunkManager.save(chunk.grid_position, chunk.chunk_data)
+        chunks.save(chunk.position, np.array(chunk.chunk_data))
         # unbind buffers
-        glBindBuffer(0, self.VBOs[chunk.grid_position])
+        # vbo_index = chunk.position[0] * ChunkRenderer.ACTIVE_AREA_SIZE.z + chunk.position[2]
+        # glBindBuffer(0, self.VBOs[vbo_index])
 
 
-    def load_dir(self, direction:tuple[2] or list[2]):
+    def load_dir(self, axis: int, value: int, direction: pyrr.Vector3):
         """
         Unload chunks behind and load chunks in the direction
         """
-        slice = self.chunks[-direction[0], :, -direction[1]]
+        chunks_shaped = self.chunks.reshape((ChunkRenderer.ACTIVE_AREA_SIZE.x, ChunkRenderer.ACTIVE_AREA_SIZE.z))
+        if value > 0:
+            if axis == 0:
+                chunks_slice = chunks_shaped[:, -1:]
+            else:
+                chunks_slice = chunks_shaped[-1:, :]
+        else:
+            if axis == 0:
+                chunks_slice = chunks_shaped[:, :1]
+            else:
+                chunks_slice = chunks_shaped[:1, :]
 
         # unload old chunks
-        for chunk in slice:
-            self.remove_chunk(chunk)
+        for chunk in chunks_slice:
+            self.remove_chunk(chunk[0])
 
         self.relative_pos += direction
 
         # load_new_chunk_data
-        new_chunk_count = (abs(direction[0]) + abs(direction[1])) * ChunkRenderer.ACTIVE_AREA_EDGE
+        new_slice_position = self.relative_pos + pyrr.Vector3([1, 0, 1]) + direction
 
-        for index in range(new_chunk_count):
-            x, z = index // ChunkRenderer.ACTIVE_AREA_EDGE, index % ChunkRenderer.ACTIVE_AREA_EDGE
-            print("X, Z: ", x, z, index)
-            self.chunks[x, 0, z] = ChunkManager.load(x, 0, z)
+        for index in range(ChunkRenderer.ACTIVE_AREA_EDGE):
+            position_list = [0, 0]
+            position_list[axis] = index
+            x, z = position_list
+            self.chunks[x * ChunkRenderer.ACTIVE_AREA_SIZE.z + z] = chunks.load((x, 0, z), self.texture_atlas)
 
 
     def create_buffers(self):
@@ -250,8 +263,8 @@ class ChunkRenderer:
         Render object \n
             model_loc: pointer to shader variable
         """
-        print(self.chunks)
-        print(self.VBOs)
+        # print(self.chunks)
+        # print(self.VBOs)
 
         for i, VBO in enumerate(self.VBOs):
             if not VBO:
@@ -260,7 +273,7 @@ class ChunkRenderer:
             chunk = self.chunks[i]
             glBindBuffer(GL_ARRAY_BUFFER, VBO)
 
-            glUniform3f(loc_chunk_pos, *(self.start_pos + chunk.position))
+            glUniform3f(loc_chunk_pos, *(self.start_pos + (chunk.position * pyrr.Vector3([16, 0, 16]))))
             glDrawArrays(GL_POINTS, 0, chunk.vertices.nbytes // (4 * 6))
 
 
@@ -282,7 +295,7 @@ class Object:
 
 
 class Camera(Object):
-    def __init__(self, fov:int=45, asp_ratio:float=16/9, near_plane: float=0.1, far_plane:int or float=100, position:tuple or list=(0, 2, 3), clamp:tuple or list=(-90, 90)):
+    def __init__(self, fov:int=45, asp_ratio:float=16/9, near_plane: float=0.1, far_plane:int or float=100, position:tuple or list=(0, 2, 3), clamp:tuple or list=(-90, 90), chunk_renderer: ChunkRenderer=None):
         """"""
         super().__init__(position, rotation=(-90, 0, 0))
         # yaw = y, pitch = x, roll = z
@@ -294,6 +307,8 @@ class Camera(Object):
         self.up = Vector3.up
         self.front = -Vector3.forward
         self.right = Vector3.right
+
+        self.chunk_renderer = chunk_renderer
 
         # projection matrix
         self.projection = pyrr.matrix44.create_perspective_projection_matrix(fov, asp_ratio, near_plane, far_plane)
@@ -326,9 +341,28 @@ class Camera(Object):
         x = self.transform.position + pyrr.Vector3(self.front)
         self.view = pyrr.matrix44.create_look_at(self.transform.position, x, self.up)
 
+
+    def move(self, direction: tuple):
+        original_position = self.transform.position // 16
+        new_position = (self.transform.position + direction) // 16
+
+        original_position.y = 0
+        new_position.y = 0
+
+        if new_position != original_position:
+            # print(new_position, original_position)
+            relative_direction = new_position - original_position
+
+            if relative_direction.x:
+                self.chunk_renderer.load_dir(0, relative_direction.x, relative_direction)
+            if relative_direction.z:
+                self.chunk_renderer.load_dir(1, relative_direction.z, relative_direction)
+
+        self.transform.move(direction)
+
+
     def raycast_chunk(self, ray_length=1):
         pass
-
 
 
 
@@ -357,5 +391,5 @@ class Player(Object):
         mouse_x *= self.sensitivity
         mouse_y *= -self.sensitivity
 
-        self.camera.transform.move(player_movement)
+        self.camera.move(player_movement)
         self.camera.rotate((mouse_x, mouse_y))

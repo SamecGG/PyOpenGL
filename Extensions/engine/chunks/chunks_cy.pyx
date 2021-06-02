@@ -6,6 +6,8 @@ from pyrr import Vector3
 import numpy as np
 cimport numpy as np
 
+import time
+
 
 
 cdef dict BlockTypes = {
@@ -30,7 +32,7 @@ normals = np.array([south, north, east, west, down, up])
 
 
 cdef class Chunk:
-    cdef public int position[3]
+    cpdef public int position[3]
 
     # atlas
     cdef unsigned int atlas_rows
@@ -72,18 +74,18 @@ cdef class Chunk:
         self.chunk_data = chunk_data
 
 
-    cdef generate_face(Chunk self, int block_position[3], int face_index, int texture:int):
+    cdef generate_face(Chunk self, int block_position[3], int face_index, int texture):
         cdef int rows = self.atlas_rows
         cdef int column = texture % rows
         cdef int row = texture / rows
-        cdef int texture_x = column / rows
-        cdef int texture_y = row / rows
+        cdef float texture_x = <float>column / rows
+        cdef float texture_y = <float>row / rows
 
         cdef float data[6]
         data[:] = [block_position[0], block_position[1], block_position[2], face_index, texture_x, texture_y] 
 
         # block_pos-3 places(can be converted to 1 number), face_index-1place, atlas_offset-2 places
-
+        
         self.vertices = np.append(self.vertices, data)
 
 
@@ -142,18 +144,23 @@ cdef class Chunk:
                                 self.generate_face(block_position, face_index, block_type_array[face_index])
                         else:
                             self.generate_face(block_position, face_index, block_type_array[face_index])
+        
 
 cdef int FAILED = -1
 cdef int SUCCESS = 0
 
-cpdef save(tuple position, np.ndarray data):
-    with open(join(WORLD_PATH, f'{position[0]}_{position[2]}.npy'), 'w') as f:
+cpdef save(list position, np.ndarray data):
+    start_time = time.time()
+    print(f"Loading chunk at: {position}")
+    with open(join(WORLD_PATH, f'{position[0]}_{position[2]}.npy'), 'wb') as f:
         np.save(f, data)
         return SUCCESS
+    print('chunk file save: ', (time.time() - start_time) * 1000)
 
 
 cpdef load(position: tuple[3] or list[3], atlas):
     file_path = join(WORLD_PATH, f'{position[0]}_{position[2]}.npy')
+    print(f"Loading chunk at: {position}")
     cdef tuple chunk_pos = position
     cdef Chunk chunk = Chunk(atlas.rows, chunk_pos)
 
@@ -163,10 +170,10 @@ cpdef load(position: tuple[3] or list[3], atlas):
         # create chunk
         chunk.generate_chunk()
     else:
-        with open(file_path, 'r') as f:
+        with open(file_path, 'rb') as f:
             data = np.load(f)
             chunk.chunk_data = data
-    
+
     chunk.generate_mesh(chunk.chunk_data)
     return chunk
 
