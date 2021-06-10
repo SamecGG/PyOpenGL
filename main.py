@@ -11,10 +11,8 @@ from OpenGL.GL.shaders import compileProgram, compileShader
 from Extensions.engine import Camera, ChunkRenderer, Player, TEXTURE_ATLAS, Vector3
 from Extensions import loaders
 import chunks
-import time
 
-start_tick = time.time() * 1000
-print(start_tick)
+
 
 #region Pygam Init
 pygame.init()
@@ -31,18 +29,20 @@ shader = compileProgram(compileShader(shader_vertex, GL_VERTEX_SHADER), compileS
 # print(glGenBuffers(1))
 
 #region Geometry Creation
-chunk = chunks.Chunk(TEXTURE_ATLAS.rows)
-chunk.generate_chunk()
+# chunk = chunks.Chunk(TEXTURE_ATLAS.rows)
+# chunk.generate_chunk()
+# chunk.generate_mesh(chunk.chunk_data)
 # print(chunk.chunk_data)
-chunk.generate_mesh(chunk.chunk_data)
 
-chunk_instancer = ChunkRenderer((-16, 0, -16))
+chunk_offset = (-16 * 2, 0, -16 * 2)
+
+chunk_instancer = ChunkRenderer(chunk_offset)
 chunk_instancer.load_chunks_at_position((0, 0, 0))
 chunk_instancer.create_buffers()
 #endregion
 
 # Player init
-camera = Camera(asp_ratio=WIDTH/HEIGHT, position=(0, 20, 0), chunk_renderer=chunk_instancer)
+camera = Camera(asp_ratio=WIDTH/HEIGHT, position=(0, 20, 0), chunk_renderer=chunk_instancer, chunk_offset=chunk_offset)
 player = Player(camera)
 
 #region OpenGL settings
@@ -111,8 +111,15 @@ while True:
                 toggle_mouse(False)
         
         if event.type == MOUSEBUTTONDOWN:
-            if event.button == 1 and not WIN_active:
-                toggle_mouse(True)
+            if event.button == 1:
+                if not WIN_active:
+                    toggle_mouse(True)
+                else:
+                    _, chunk, block_index = camera.raycast()
+
+                    if chunk:
+                        # chunk.set_chunk_data_at(block_index, 0)
+                        pass
 
     #region Key input
     # WSAD

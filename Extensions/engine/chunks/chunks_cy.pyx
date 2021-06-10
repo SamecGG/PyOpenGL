@@ -7,6 +7,7 @@ import numpy as np
 cimport numpy as np
 
 import time
+import random
 
 
 
@@ -75,13 +76,14 @@ cdef class Chunk:
 
 
     cdef generate_face(Chunk self, int block_position[3], int face_index, int texture):
-        cdef int rows = self.atlas_rows
-        cdef int column = texture % rows
-        cdef int row = texture / rows
-        cdef float texture_x = <float>column / rows
-        cdef float texture_y = <float>row / rows
+        cdef:
+            int rows = self.atlas_rows
+            int column = texture % rows
+            int row = texture / rows
+            float texture_x = <float>column / rows
+            float texture_y = <float>row / rows
 
-        cdef float data[6]
+            float data[6]
         data[:] = [block_position[0], block_position[1], block_position[2], face_index, texture_x, texture_y] 
 
         # block_pos-3 places(can be converted to 1 number), face_index-1place, atlas_offset-2 places
@@ -144,25 +146,51 @@ cdef class Chunk:
                                 self.generate_face(block_position, face_index, block_type_array[face_index])
                         else:
                             self.generate_face(block_position, face_index, block_type_array[face_index])
+    
+    cpdef set_chunk_data_at(Chunk self, int index, int value):
+        self.chunk_data[index] = value 
+
+        # regenerate mesh
+        index = self.vertex_of_index(index)
+        self.vertices[index] = [0, 0, 0, 0, 0, 0]
         
+
+    cdef int vertex_of_index(Chunk self, int index):
+        cdef:
+            bint found = False
+            float[6] vertex = self.vertices[index]
+            int position_index = <int>vertex[0] * 1024 + <int>vertex[1] * 16 + <int>vertex[2]
+
+        if position_index == index:
+            return index
+
+        while not found:
+            vertex[6] = self.vertices[index]
+            position_index = <int>vertex[0] * 1024 + <int>vertex[1] * 16 + <int>vertex[2]
+
+            if position_index == index:
+                return index
+
+            index += 1
+
+
+
 
 cdef int FAILED = -1
 cdef int SUCCESS = 0
 
 cpdef save(list position, np.ndarray data):
-    start_time = time.time()
     print(f"Loading chunk at: {position}")
     with open(join(WORLD_PATH, f'{position[0]}_{position[2]}.npy'), 'wb') as f:
         np.save(f, data)
         return SUCCESS
-    print('chunk file save: ', (time.time() - start_time) * 1000)
 
 
-cpdef load(position: tuple[3] or list[3], atlas):
+cpdef load(position: tuple[3] or list[3], int atlas_rows):
     file_path = join(WORLD_PATH, f'{position[0]}_{position[2]}.npy')
     print(f"Loading chunk at: {position}")
     cdef tuple chunk_pos = position
-    cdef Chunk chunk = Chunk(atlas.rows, chunk_pos)
+    cdef Chunk chunk = Chunk(atlas_rows, chunk_pos)
 
     cdef np.ndarray data
 
